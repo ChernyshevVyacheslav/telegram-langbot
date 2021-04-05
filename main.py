@@ -16,6 +16,8 @@ def save_json():
     with open('state.json', 'r') as j:
             json_data = json.load(j)
     id=chat_id
+    if isinstance(json_data, str):
+        json_data=dict(eval(json_data))
     json_data[id]=[state[id][0], state[id][1]]
     with open('state.json', 'w') as file:
         json.dump(json_data, file)
@@ -26,7 +28,8 @@ def new_dict(chat_id):
     chat_id=str(chat_id)
     state={chat_id:["reply", "en"]}
 def load_state(chat_id):
-    with open('state.json', 'r') as j:
+    if os.path.exists('state.json'):
+        with open('state.json', 'r') as j:
             jsonstate = json.load(j)
             id=str(chat_id)
             if id in jsonstate:
@@ -34,6 +37,10 @@ def load_state(chat_id):
                 state={id: [jsonstate[id][0], jsonstate[id][1]]}
             else:
                 new_dict(chat_id)
+    else:
+        new_dict(chat_id)
+        with open('state.json', 'w+') as j:
+            json.dump(state, j)
     j.close
 def Default_delete(update, context):
     global state
