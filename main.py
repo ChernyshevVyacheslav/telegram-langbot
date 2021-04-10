@@ -4,14 +4,19 @@ import re
 
 import googletrans
 from googletrans import Translator
-from telegram import Update, Bot
-from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CommandHandler
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CommandHandler, CallbackQueryHandler
 from dotenv import load_dotenv
 import json
 
 state = ''
 bot = None
 
+languages=['en', 'ru', 'de', 'zh-cn', 'hi', 'fr', 'ar', 'es']
+
+def build_menu(buttons):
+    menu = [buttons[i] for i in range(3)]
+    return menu
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -63,45 +68,49 @@ def load_state(chat_id):
     j.close
     return state_loaded
 
-
-def Default_delete(update, context):
+def change_action(update, context):
     chat_id = check_state(update.effective_chat.id)
-    state[chat_id][0] = "delete"
-    save_json(chat_id)
-
-
-def Default_reply(update, context):
-    chat_id = check_state(update.effective_chat.id)
-    state[chat_id][0] = "reply"
-    save_json(chat_id)
+    button_list = [
+    [InlineKeyboardButton("Reply", callback_data='reply'), InlineKeyboardButton("Delete", callback_data='delete')]
+    ]
+    reply_markup = InlineKeyboardMarkup(button_list)
+    update.message.reply_text('You can choose action with messages (delete initial message of reply it):', reply_markup=reply_markup)
 
 def Help(update, context):
-    text='This bot can automatically translate Russian-language messages in your chat.\n'\
+    text='**About bot**\n'\
+        'This bot can automatically translate Russian-language messages in your chat.\n'\
         'To start working with it, add it to your chat.'
     context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
 
-def languages():
-    text =  'To change destination language, you need to write:\n'\
-            '/dest <langname> . Ex.:/dest fr\n'\
-            'English - en\nRussian - ru\nChinnesse - zh-cn' \
-           '\nHindi - hi\nFrench - fr\nSpanish - es' \
-           '\nGerman - de\nArabic - ar\n'
-    return text
-
-
 def Dest(update, context):
     chat_id = check_state(update.effective_chat.id)
-    if context.args:
-        state[chat_id][1] = ''.join(context.args)
-        save_json(chat_id)
-    else:
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text=languages())
-
+    button_list = [
+    [InlineKeyboardButton("English", callback_data='en'), InlineKeyboardButton("Russian", callback_data='ru')],
+    [InlineKeyboardButton("German", callback_data='de'), InlineKeyboardButton("Chinnesse", callback_data='zh-cn')],
+    [InlineKeyboardButton("Hindi", callback_data='hi'), InlineKeyboardButton("French", callback_data='fr')],
+    [InlineKeyboardButton("Arabic", callback_data='ar'), InlineKeyboardButton("Spanish", callback_data='es')]
+]
+    reply_markup = InlineKeyboardMarkup(button_list)
+    update.message.reply_text('You can choose destination language:', reply_markup=reply_markup)
 
 def has_cyrillic(text):
     return bool(re.search('[а-яА-Я]', text))
+
+def button(update, context):
+    chat_id = check_state(update.effective_chat.id)
+    query = update.callback_query
+    variant = query.data
+    if variant in languages:
+        state[chat_id][1]=variant
+        query.answer()
+        query.edit_message_text(text=f"Choosen language : {variant}")
+    else:
+        state[chat_id][0]=variant
+        query.answer()
+        query.edit_message_text(text=f"Choosen action : {variant}")
+    save_json(chat_id)
+
 
 def is_photo(len):
     if len !=0:
@@ -146,11 +155,10 @@ def main():
     bot = Bot(Token)
     dispatcher = updater.dispatcher
     dest_handler = CommandHandler('dest', Dest)
-    delete_handler = CommandHandler('default_delete', Default_delete)
-    reply_handler = CommandHandler('default_reply', Default_reply)
+    action_handler = CommandHandler('change_action', change_action)
     help_handler = CommandHandler('help', Help)
-    dispatcher.add_handler(delete_handler)
-    dispatcher.add_handler(reply_handler)
+    dispatcher.add_handler(CallbackQueryHandler(button))
+    dispatcher.add_handler(action_handler)
     dispatcher.add_handler(dest_handler)
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(MessageHandler((Filters.text | Filters.photo) & ~Filters.command, translate))
